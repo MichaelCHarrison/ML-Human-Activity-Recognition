@@ -1,6 +1,29 @@
 Human Activity Recognition
 
 ```{r}
+library(data.table); library(caret); library(ggplot2)
+training <- fread("pml-training.csv")
+testing <- fread("pml-testing.csv")
+dim(training)
+```
+```{r}
+dim(testing)
+```
 
+Remove columns containing NAs
+```{r}
+training <- t(na.omit(t(training)))
+training <- training[, -c(1:7)]
+toDrop <- c("^kurtosis*","^skewness*","yaw")
+training <- training[, -grep(paste(toDrop, collapse = "|"), colnames(training))]
+
+dim(training)
+```
+
+
+
+```{r}
+modFit <- train(classe ~., data=training, method="rf", prox=TRUE)
+modFit
 ```
 
