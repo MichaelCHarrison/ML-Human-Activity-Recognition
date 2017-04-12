@@ -7,54 +7,68 @@ library(ggplot2)
 library(data.table)
 library(GGally)
 
-trainingPrime <- fread("pml-training.csv")
-testingFinal <- fread("pml-testing.csv")
+training <- fread("pml-training.csv")
+testing <- fread("pml-testing.csv")
 ```
 ```{r}
-dim(trainingPrime)
+dim(training)
 ```
 ```{r}
-dim(testingFinal)
+dim(testing)
 ```
 
 Remove columns containing NAs
 ```{r, cache=TRUE}
-trainingPrime <- t(na.omit(t(trainingPrime)))
+trainingPrime <- t(na.omit(t(training)))
 trainingPrime <- trainingPrime[, -c(1:7)]
 toDrop <- c("^kurtosis*","^skewness*","yaw")
 trainingPrime <- trainingPrime[, -grep(paste(toDrop, collapse = "|"),
                                        colnames(trainingPrime))]
-training1 <- as.data.table(trainingPrime)
-training1$classe <- as.factor(training1$classe)
-training1[,1:48] <- sapply(training1[,1:48], as.numeric)
-dim(trainingPrime)
+trainingPrime <- as.data.table(trainingPrime)
 ```
 ```{r}
-str(trainingPrime)
+trainingPrime[,1:48] <- trainingPrime[, lapply(trainingPrime[,1:48], as.numeric)]
+trainingPrime$classe <- as.factor(trainingPrime$classe)
+dim(trainingPrime)
 ```
+
 
 *First Cross Validation - Random Forest*
 ```{r}
 set.seed(1704111)
-inTrainCV1 <- createDataPartition(y=training1$classe,
-                                  p=.7, list=FALSE)
-trainingCV1 <- training1[inTrainCV1,]
-testingCV1 <- training1[-inTrainCV1,]
+inTrain <- createDataPartition(y=trainingPrime$classe,
+                                  p=.75, list=FALSE)
+training1 <- training[inTrain,]
+testing1 <- training[-inTrain,]
+x <- training1[,-49]
+y <- training1[,49]
 ```
-```{r}
-dim(trainingCV1)
+
+*Configuring parallel processing*
+```{r, results='hide'}
+library(parallel)
+library(doParallel)
+cluster <- makeCluster(detectCores()-1)
+registerDoParallel
 ```
+
+*Configure trainControl object*
 ```{r}
-dim(testingCV1)
-```
-```{r}
-summary(trainingCV1)
+fitControl <- trainControl(method = "cv",
+                           number = 10,
+                           allowParallel = TRUE)
 ```
 
 
 ```{r}
-modFit <- train(classe ~., data=trainingCV1, method="rf", prox=TRUE)
-modFit
+fit1 <- train(x, y, data=trainingPrime, 
+                method="rf", trControl = fitControl)
+stopCluster(cluster)
+registerDoSEQ()
+```
+
+```{r}
+
 ```
 
 
