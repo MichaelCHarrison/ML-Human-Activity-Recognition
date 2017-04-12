@@ -1,23 +1,14 @@
 Human Activity Recognition
 
 ```{r, warning=FALSE}
-library(data.table)
 library(caret)
-library(ggplot2)
 library(data.table)
-library(GGally)
 
 training <- fread("pml-training.csv")
 testing <- fread("pml-testing.csv")
 ```
-```{r}
-dim(training)
-```
-```{r}
-dim(testing)
-```
 
-Remove columns containing NAs
+*Tidying Data*
 ```{r, cache=TRUE}
 trainingPrime <- t(na.omit(t(training)))
 trainingPrime <- trainingPrime[, -c(1:7)]
@@ -37,19 +28,19 @@ dim(trainingPrime)
 ```{r}
 set.seed(1704111)
 inTrain <- createDataPartition(y=trainingPrime$classe,
-                                  p=.75, list=FALSE)
-training1 <- training[inTrain,]
-testing1 <- training[-inTrain,]
+                               p=.75, list=FALSE)
+training1 <- trainingPrime[inTrain,]
+testing1 <- trainingPrime[-inTrain,]
 x <- training1[,-49]
 y <- training1[,49]
 ```
 
 *Configuring parallel processing*
-```{r, results='hide'}
+```{r}
 library(parallel)
 library(doParallel)
 cluster <- makeCluster(detectCores()-1)
-registerDoParallel
+registerDoParallel(cluster)
 ```
 
 *Configure trainControl object*
@@ -61,25 +52,33 @@ fitControl <- trainControl(method = "cv",
 
 
 ```{r}
-fit1 <- train(x, y, data=trainingPrime, 
+fit1 <- train(classe~., data=training1, 
                 method="rf", trControl = fitControl)
 stopCluster(cluster)
 registerDoSEQ()
+fit1
+```
+```{r}
+fit1$resample
+```
+```{r}
+confusionMatrix(fit1)
 ```
 
+*Applying randomForest model to testing set*
 ```{r}
 
 ```
 
-
-*Second Cross Validation - Boosting*
+*Second Model - Boosting*
 ```{r}
-set.seed(1704112)
-training2 <- trainingPrime
-inTrainCV2 <- createDataPartition(y=training2$classe,
-                                  p=.7, list=FALSE)
-trainingCV2 <- training1[inTrainCV2,]
-testingCV2 <- training1[-inTrainCV2,]
+cluster <- makeCluster(detectCores()-1)
+registerDoParallel(cluster)
+fit2 <- train(classe~., data=training1,
+              method = "glm", trControl = fitControl)
+stopCluster(cluster)
+registerDoSEQ()
+fit2
 ```
 
 ```{r}
