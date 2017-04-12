@@ -1,29 +1,78 @@
 Human Activity Recognition
 
-```{r}
-library(data.table); library(caret); library(ggplot2)
-training <- fread("pml-training.csv")
-testing <- fread("pml-testing.csv")
-dim(training)
+```{r, warning=FALSE}
+library(data.table)
+library(caret)
+library(ggplot2)
+library(data.table)
+library(GGally)
+
+trainingPrime <- fread("pml-training.csv")
+testingFinal <- fread("pml-testing.csv")
 ```
 ```{r}
-dim(testing)
+dim(trainingPrime)
+```
+```{r}
+dim(testingFinal)
 ```
 
 Remove columns containing NAs
-```{r}
-training <- t(na.omit(t(training)))
-training <- training[, -c(1:7)]
+```{r, cache=TRUE}
+trainingPrime <- t(na.omit(t(trainingPrime)))
+trainingPrime <- trainingPrime[, -c(1:7)]
 toDrop <- c("^kurtosis*","^skewness*","yaw")
-training <- training[, -grep(paste(toDrop, collapse = "|"), colnames(training))]
+trainingPrime <- trainingPrime[, -grep(paste(toDrop, collapse = "|"),
+                                       colnames(trainingPrime))]
+training1 <- as.data.table(trainingPrime)
+training1$classe <- as.factor(training1$classe)
+training1[,1:48] <- sapply(training1[,1:48], as.numeric)
+dim(trainingPrime)
+```
+```{r}
+str(trainingPrime)
+```
 
-dim(training)
+*First Cross Validation - Random Forest*
+```{r}
+set.seed(1704111)
+inTrainCV1 <- createDataPartition(y=training1$classe,
+                                  p=.7, list=FALSE)
+trainingCV1 <- training1[inTrainCV1,]
+testingCV1 <- training1[-inTrainCV1,]
+```
+```{r}
+dim(trainingCV1)
+```
+```{r}
+dim(testingCV1)
+```
+```{r}
+summary(trainingCV1)
 ```
 
 
-
 ```{r}
-modFit <- train(classe ~., data=training, method="rf", prox=TRUE)
+modFit <- train(classe ~., data=trainingCV1, method="rf", prox=TRUE)
 modFit
 ```
 
+
+*Second Cross Validation - Boosting*
+```{r}
+set.seed(1704112)
+training2 <- trainingPrime
+inTrainCV2 <- createDataPartition(y=training2$classe,
+                                  p=.7, list=FALSE)
+trainingCV2 <- training1[inTrainCV2,]
+testingCV2 <- training1[-inTrainCV2,]
+```
+
+```{r}
+set.seed(1704113)
+training3 <- trainingPrime
+inTrainCV3 <- createDataPartition(y=training3$classe,
+                                  p=.7, list=FALSE)
+trainingCV3 <- training1[inTrainCV3,]
+testingCV3 <- training1[-inTrainCV3,]
+```
