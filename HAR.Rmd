@@ -1,5 +1,9 @@
 Human Activity Recognition
 
+*Problem Description*
+
+
+*Provided Data*
 ```{r, warning=FALSE}
 library(caret)
 library(data.table)
@@ -7,6 +11,14 @@ library(data.table)
 training <- fread("pml-training.csv")
 testing <- fread("pml-testing.csv")
 ```
+
+-Constraints
+        - 160 variables: many NAs
+        - First 7 unrelated to question
+        - Many variables in data set are derived variables: kurtosis, skewness,
+        max, min, var, sd, amplitude, avg
+-Present working dataset
+
 
 *Tidying Data*
 ```{r, cache=TRUE}
@@ -17,21 +29,42 @@ trainingPrime <- trainingPrime[, -grep(paste(toDrop, collapse = "|"),
                                        colnames(trainingPrime))]
 trainingPrime <- as.data.table(trainingPrime)
 ```
+
+
 ```{r}
 trainingPrime[,1:48] <- trainingPrime[, lapply(trainingPrime[,1:48], as.numeric)]
 trainingPrime$classe <- as.factor(trainingPrime$classe)
 dim(trainingPrime)
 ```
 
+*Analyze Data*
+- Summarize
+        - Data Structure
+        - Data Distributions
+- Visualize
+        - Atrribute Histogram
+        - Pairwise scatter plot
 
-*First Cross Validation - Random Forest*
+*Prepare Data*
+- Formatting
+- Cleaning
+- Sampling
+
+#Sampling#
 ```{r}
 inTrain <- createDataPartition(y=trainingPrime$classe,
                                p=.75, list=FALSE)
 training1 <- trainingPrime[inTrain,]
 testing1 <- trainingPrime[-inTrain,]
 ```
-*Model 1: Random Forest; recommended defaults*
+
+*Evaluate Algorithm*
+
+- Select Algorithm
+        - Interpret and report results
+
+
+#RF, mtry = 7#
 ```{r}
 #Configur parallel processing
 start.time <- Sys.time()
@@ -42,7 +75,7 @@ library(randomForest)
 cluster <- makeCluster(detectCores()-1)
 registerDoParallel(cluster)
 
-#Recommended default control features
+####################Run default first#############################
 fitControl <- trainControl(method = "repeatedcv",
                            number = 10,
                            repeats = 3,
@@ -61,19 +94,73 @@ end.time <- Sys.time()
 time.takenRF1 <- end.time - start.time #Time difference of 8.76054 mins
 fitRF1
 ```
-- fitRF1: Resample, confustion matrix
+
+
+#Resample Stats#
 ```{r}
 fitRF1$resample
 ```
+
+
+#Confustion Matrix#
 ```{r}
 confusionMatrix(fitRF1)
 ```
 
 
+*Improve Results*
+- Algorithm Tuning
+        - Using the tunRF function of randomForest to optimize mtry value
+        
+        
+        
+#Tuning#
+```{r}
+x <- training1[,1:48]
+y <- training1$classe
+set.seed(1704111)
+time.start <- Sys.time()
+optmtry <- tuneRF(x, y, 
+                  stepFactor = 1.5, 
+                  improve = 1e-5, ntreeTry = 500)
+time.end <- Sys.time()
+time.takenRF2 <- time.end - time.start
+optmtry
+```
+
+#Applied Tuning#
+```{r}
+cluster <- makeCluster(detectCores()-1)
+registerDoParallel(cluster)
+
+#Recommended default control features
+fitControl <- trainControl(method = "repeatedcv",
+                           number = 10,
+                           repeats = 3,
+                           allowParallel = TRUE)
+
+set.seed(1704111)
+fitRF3 <- train(classe~., data=training1, 
+                method="rf", 
+                metric = "Accuracy", 
+                trControl = fitControl, 
+                tuneGrid = expand.grid(mtry=6))
+
+stopCluster(cluster)
+registerDoSEQ()
+end.time <- Sys.time()
+time.takenRF3 <- end.time - start.time
+fitRF3
+```
 
 
 
-*Model 2: Random Forest; search = "random"*
+
+
+
+
+
+##Scrapped Scripts##
 ```{r}
 #Configur parallel processing
 start.time <- Sys.time()
@@ -104,12 +191,6 @@ end.time <- Sys.time()
 time.takenRF2 <- end.time - start.time
 fitRF2
 ```
-
-
-
-
-
-
 
 ```{r}
 start.time <- Sys.time()
