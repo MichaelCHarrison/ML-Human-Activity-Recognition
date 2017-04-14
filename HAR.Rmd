@@ -26,66 +26,131 @@ dim(trainingPrime)
 
 *First Cross Validation - Random Forest*
 ```{r}
-set.seed(1704111)
 inTrain <- createDataPartition(y=trainingPrime$classe,
                                p=.75, list=FALSE)
 training1 <- trainingPrime[inTrain,]
 testing1 <- trainingPrime[-inTrain,]
-x <- training1[,-49]
-y <- training1[,49]
+```
+*Model 1: Random Forest; recommended defaults*
+```{r}
+#Configur parallel processing
+start.time <- Sys.time()
+library(parallel)
+library(doParallel)
+library(randomForest)
+
+cluster <- makeCluster(detectCores()-1)
+registerDoParallel(cluster)
+
+#Recommended default control features
+fitControl <- trainControl(method = "repeatedcv",
+                           number = 10,
+                           repeats = 3,
+                           allowParallel = TRUE)
+
+set.seed(1704111)
+fitRF1 <- train(classe~., data=training1, 
+                method="rf", 
+                metric = "Accuracy", 
+                trControl = fitControl, 
+                tuneGrid = expand.grid(mtry=7))
+
+stopCluster(cluster)
+registerDoSEQ()
+end.time <- Sys.time()
+time.takenRF1 <- end.time - start.time #Time difference of 8.76054 mins
+fitRF1
+```
+- fitRF1: Resample, confustion matrix
+```{r}
+fitRF1$resample
+```
+```{r}
+confusionMatrix(fitRF1)
 ```
 
-*Configuring parallel processing*
+
+
+
+
+*Model 2: Random Forest; search = "random"*
 ```{r}
+#Configur parallel processing
+start.time <- Sys.time()
+library(parallel)
+library(doParallel)
+library(randomForest)
+
+cluster <- makeCluster(detectCores()-1)
+registerDoParallel(cluster)
+
+#search = "random"
+fitControl <- trainControl(method = "repeatedcv",
+                           number = 10,
+                           repeats = 3,
+                           search = "random",
+                           allowParallel = TRUE)
+
+set.seed(1704111)
+fitRF2 <- train(classe~., data=training1, 
+                method="rf", 
+                metric = "Accuracy", 
+                trControl = fitControl, 
+                tuneLength = 15)
+
+stopCluster(cluster)
+registerDoSEQ()
+end.time <- Sys.time()
+time.takenRF2 <- end.time - start.time
+fitRF2
+```
+
+
+
+
+
+
+
+```{r}
+start.time <- Sys.time()
 library(parallel)
 library(doParallel)
 cluster <- makeCluster(detectCores()-1)
 registerDoParallel(cluster)
-```
 
-*Configure trainControl object*
-```{r}
-fitControl <- trainControl(method = "cv",
-                           number = 10,
-                           allowParallel = TRUE)
-```
+inTrain2 <- createDataPartition(y=trainingPrime$classe,
+                               p=.75, list=FALSE)
+training2 <- trainingPrime[inTrain2,]
+testing2 <- trainingPrime[-inTrain2,]
 
+gbmGrid <- expand.grid(shrinkage = .1,
+                       n.trees = (1:30)*50,
+                       interaction.depth = c(1,5,9),
+                       n.minobsinnode = 20)
 
-```{r}
-fit1 <- train(classe~., data=training1, 
-                method="rf", trControl = fitControl)
+fitControl2 <- trainControl(method = "cv",
+                            number = 10,
+                            allowParallel = TRUE)
+set.seed(1704112)
+fit2 <- train(classe~., data=training2,
+              method="gbm", trControl = fitControl2,
+              verbose=FALSE, tuneGrid=gbmGrid)
 stopCluster(cluster)
 registerDoSEQ()
-fit1
+end.time <- Sys.time()
+time.taken <- end.time - start.time
+fit2
+
 ```
-```{r}
-fit1$resample
-```
-```{r}
-confusionMatrix(fit1)
-```
+
 
 *Applying randomForest model to testing set*
 ```{r}
-
+pred1 <- predict(fit1, testing1)
+testing1$predRight <- pred1 == testing1$classe
+table(pred1, testing1$classe)
 ```
-
-*Second Model - Boosting*
 ```{r}
-cluster <- makeCluster(detectCores()-1)
-registerDoParallel(cluster)
-fit2 <- train(classe~., data=training1,
-              method = "glm", trControl = fitControl)
-stopCluster(cluster)
-registerDoSEQ()
-fit2
+sum(testing1$predRight)/length(testing1$classe)
 ```
 
-```{r}
-set.seed(1704113)
-training3 <- trainingPrime
-inTrainCV3 <- createDataPartition(y=training3$classe,
-                                  p=.7, list=FALSE)
-trainingCV3 <- training1[inTrainCV3,]
-testingCV3 <- training1[-inTrainCV3,]
-```
