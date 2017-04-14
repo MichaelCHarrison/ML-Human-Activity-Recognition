@@ -1,35 +1,43 @@
-Human Activity Recognition
+---
+title: "Human Activity Recognition Predictive Analysis"
+output: html_notebook
+---
 
 *Problem Description*
 
+Wearable technologies (such as Fitbit, Nike FuelBand and Garvmin Vivosmart products) have allowed for the widespread collection of data relating to physical activity. While the focus of these devices is largely on quantifying and tracking the amount of activity, the data collected carries the potential to assess not only quantifiable measures but qualitative as well. Human Activity Recognition (HAR) has hained increasing attention in the research community for the development of potential applications in context-aware systems. 
+
+Using the dataset from Ugulino et al.'s "Wearable Computing: Accelerometers' Data Classification of Body Postures and Movements", in which subjects performed barbell lifts correctly and incorrectly to establish 5 different classes of activity, I will use machine learning based classifer to predict the class of acitivy for the data set.
 
 *Provided Data*
-```{r, warning=FALSE}
+```{r, warning=FALSE, message=FALSE}
 library(caret)
 library(data.table)
 
 training <- fread("pml-training.csv")
 testing <- fread("pml-testing.csv")
+dim(training)
 ```
 
--Constraints
-        - 160 variables: many NAs
-        - First 7 unrelated to question
-        - Many variables in data set are derived variables: kurtosis, skewness,
-        max, min, var, sd, amplitude, avg
--Present working dataset
 
 
-*Tidying Data*
+- Data Constraints
+The 19,622 observations of 160 variables contains many variables unnecessary in model building, namely the first 7 columns pertaining to observation number, subject name, timestamps, and window variable. Additionally, derived column variables containing missing data or NA values (kurtosis, skewness, max, min, variance, standard deviation, amplitude, and average of sensors) will be removed, preserving only measurements from belt, arm, formarm, and dumbbell.
+
 ```{r, cache=TRUE}
+#remove NA columns; max, min, variance, sd, amplitude, average
 trainingPrime <- t(na.omit(t(training)))
+#remove observation number, subject name, timestamps
 trainingPrime <- trainingPrime[, -c(1:7)]
+#remove kurtosis, skewness, yaw column variables
 toDrop <- c("^kurtosis*","^skewness*","yaw")
 trainingPrime <- trainingPrime[, -grep(paste(toDrop, collapse = "|"),
                                        colnames(trainingPrime))]
+#transform matrix to data.table
 trainingPrime <- as.data.table(trainingPrime)
 ```
 
+Column types for numerical measure need to be converted from character classes to numeric for modeling purposes:
 
 ```{r}
 trainingPrime[,1:48] <- trainingPrime[, lapply(trainingPrime[,1:48], as.numeric)]
@@ -43,14 +51,22 @@ dim(trainingPrime)
         - Data Distributions
 - Visualize
         - Atrribute Histogram
+        
+```{r}
+
+```
+
         - Pairwise scatter plot
+```{r}
+
+```
 
 *Prepare Data*
 - Formatting
 - Cleaning
 - Sampling
 
-#Sampling#
+~Sampling
 ```{r}
 inTrain <- createDataPartition(y=trainingPrime$classe,
                                p=.75, list=FALSE)
