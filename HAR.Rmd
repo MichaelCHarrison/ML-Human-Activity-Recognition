@@ -22,7 +22,7 @@ dim(training)
 
 
 - Data Constraints
-The 19,622 observations of 160 variables contains many variables unnecessary in model building, namely the first 7 columns pertaining to observation number, subject name, timestamps, and window variable. Additionally, derived column variables containing missing data or NA values (kurtosis, skewness, max, min, variance, standard deviation, amplitude, and average of sensors) will be removed, preserving only measurements from belt, arm, formarm, and dumbbell.
+The 19,622 observations of 160 variables contains many variables unnecessary in model building, namely the first 7 columns pertaining to observation number, subject name, timestamps, and window variable. Additionally, derived column variables containing missing data or NA values (kurtosis, skewness, max, min, variance, standard deviation, amplitude, and average of sensors) will be removed, preserving only measurements from belt, arm, formarm, and dumbbell. Finally, column types need to be converted from character class to numeric for modeling purposes.
 
 ```{r, cache=TRUE}
 #remove NA columns; max, min, variance, sd, amplitude, average
@@ -35,36 +35,32 @@ trainingPrime <- trainingPrime[, -grep(paste(toDrop, collapse = "|"),
                                        colnames(trainingPrime))]
 #transform matrix to data.table
 trainingPrime <- as.data.table(trainingPrime)
-```
-
-Column types for numerical measure need to be converted from character classes to numeric for modeling purposes:
-
-```{r}
+#Convert character class values to numeric
 trainingPrime[,1:48] <- trainingPrime[, lapply(trainingPrime[,1:48], as.numeric)]
 trainingPrime$classe <- as.factor(trainingPrime$classe)
 dim(trainingPrime)
 ```
 
 *Analyze Data*
-- Summarize
-        - Data Structure
-        - Data Distributions
-- Visualize
-        - Atrribute Histogram
+
+Dataset now contains 48 predictors (numeric variables), 1 outcome (factor variable). 
+```{r}
+summary(trainingPrime$classe)
+```
+```{r, warning=FALSE}
+ggplot(trainingPrime, aes(classe)) + geom_histogram(stat="count")
+```
+
+```{r}
+featurePlot(x = trainingPrime[,1:12], y = trainingPrime[,49], plot="pairs")
+```
+
         
+
 ```{r}
-
+library(corrplot)
+corrplot(cor(trainingPrime[,1:12]), method="color", type="upper")
 ```
-
-        - Pairwise scatter plot
-```{r}
-
-```
-
-*Prepare Data*
-- Formatting
-- Cleaning
-- Sampling
 
 ~Sampling
 ```{r}
@@ -76,33 +72,116 @@ testing1 <- trainingPrime[-inTrain,]
 
 *Evaluate Algorithm*
 
-- Select Algorithm
-        - Interpret and report results
+For the purposes of this classification analysis, I will use randomForest. The baseline will be established with an mtry value of the rounded square root of the number of predictors.
+
+```{r}
+x <- training1[,1:48]
+y <- training1$classe
+seed <- 170418
+```
+
+```{r}
+#Configures parallel processing
+library(parallel)
+library(doParallel)
+library(randomForest)
+
+start.time <- Sys.time()
+cluster <- makeCluster(detectCores()-1)
+registerDoParallel(cluster)
+
+fitControl <- trainControl(method = "repeatedcv",
+                           number = 10,
+                           repeats = 3,
+                           allowParallel = TRUE)
+
+set.seed(seed)
+fitRF <- train(x, y, data=training1, 
+               method="rf", 
+               metric = "Accuracy",   
+               trControl = fitControl,
+               tuneGrid = expand.grid(mtry=round(sqrt(ncol(x)))))
+
+stopCluster(cluster)
+registerDoSEQ()
+end.time <- Sys.time()
+time.takenRF <- end.time - start.time
+fitRF$results
+```
+
+*Improve Results*
+To improve the accuracy of the randomForest, I'll use the tuneRF function to optimize the mtry value.
+
+
+```{r}
+start.time <- Sys.time()
+cluster <- makeCluster(detectCores()-1)
+registerDoParallel(cluster)
+
+set.seed(seed)
+optmtryRF2 <- tuneRF(x, y, 
+                  stepFactor = 1.5, 
+                  improve = 1e-5, ntreeTry = 500)
+
+stopCluster(cluster)
+registerDoSEQ()
+end.time <- Sys.time()
+time.takenRF2 <- end.time - start.time
+optmtryRF2
+```
+
+Result shows that a mtry = 6 is optimal for this data set.
+
+```{r}
+start.time <- Sys.time()
+cluster <- makeCluster(detectCores()-1)
+registerDoParallel(cluster)
+
+fitControl <- trainControl(method = "repeatedcv",
+                           number = 10,
+                           repeats = 3,
+                           allowParallel = TRUE)
+#keep mtry constant 
+tuneGrid <- expand.grid(mtry = round(sqrt(ncol(x))))
+
+#tune the algorithm for ntrees
+fitList <- list()
+for(ntree in c(300, 400, 500, 600, 700)){
+        set.seed(seed)
+        fitRF <- train(x, y, data = training1,
+                       method = "rf", metric = "Accuracy", 
+                       tuneGrid = tuneGrid, trControl = fitControl,
+                       ntree = ntree)
+        key <- toString(ntree)
+        fitList[[key]] <- fitRF
+}
+
+stopCluster(cluster)
+registerDoSEQ()
+end.time <- Sys.time()
+time.takenRFtune <- end.time - start.time
+```
+
 
 
 #RF, mtry = 7#
 ```{r}
 #Configur parallel processing
 start.time <- Sys.time()
-library(parallel)
-library(doParallel)
-library(randomForest)
-
 cluster <- makeCluster(detectCores()-1)
 registerDoParallel(cluster)
 
-####################Run default first#############################
 fitControl <- trainControl(method = "repeatedcv",
                            number = 10,
                            repeats = 3,
                            allowParallel = TRUE)
 
-set.seed(1704111)
+set.seed(seed)
 fitRF1 <- train(classe~., data=training1, 
                 method="rf", 
                 metric = "Accuracy", 
                 trControl = fitControl, 
-                tuneGrid = expand.grid(mtry=7))
+                tuneGrid = expand.grid(mtry=round(sqrt(ncol(x)))))
 
 stopCluster(cluster)
 registerDoSEQ()
@@ -123,26 +202,6 @@ fitRF1$resample
 confusionMatrix(fitRF1)
 ```
 
-
-*Improve Results*
-- Algorithm Tuning
-        - Using the tunRF function of randomForest to optimize mtry value
-        
-        
-        
-#Tuning#
-```{r}
-x <- training1[,1:48]
-y <- training1$classe
-set.seed(1704111)
-time.start <- Sys.time()
-optmtry <- tuneRF(x, y, 
-                  stepFactor = 1.5, 
-                  improve = 1e-5, ntreeTry = 500)
-time.end <- Sys.time()
-time.takenRF2 <- time.end - time.start
-optmtry
-```
 
 #Applied Tuning#
 ```{r}
