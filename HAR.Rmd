@@ -44,24 +44,15 @@ dim(trainingPrime)
 *Analyze Data*
 
 Dataset now contains 48 predictors (numeric variables), 1 outcome (factor variable). 
-```{r}
-summary(trainingPrime$classe)
-```
 ```{r, warning=FALSE}
 ggplot(trainingPrime, aes(classe)) + geom_histogram(stat="count")
 ```
 
 ```{r}
-featurePlot(x = trainingPrime[,1:12], y = trainingPrime[,49], plot="pairs")
+summary(trainingPrime$classe)
 ```
 
         
-
-```{r}
-library(corrplot)
-corrplot(cor(trainingPrime[,1:12]), method="color", type="upper")
-```
-
 ~Sampling
 ```{r}
 inTrain <- createDataPartition(y=trainingPrime$classe,
@@ -84,11 +75,39 @@ seed <- 170418
 #Configures parallel processing
 library(parallel)
 library(doParallel)
-library(randomForest)
 
+paraOn <- function(){
+        cluster <- makeCluster(detectCores()-1)
+        registerDoParallel(cluster)}
+
+paraOff <- function(){
+        stopCluster(cluster)
+        registerDoSEQ()}
+```
+
+~Random Forest
+
+```{r}
 start.time <- Sys.time()
-cluster <- makeCluster(detectCores()-1)
-registerDoParallel(cluster)
+paraOn()
+
+fitControl <- trainControl(allowParallel = TRUE)
+
+set.seed(seed)
+fitRFDefault <- train(x, y, data = training1,
+               method = "rf", metric = "Accuracy",
+               trControl = fitControl)
+paraOff()
+end.time <- Sys.time()
+time.takenRFDefault <- end.time - start.time #36.80987 minutes
+fitRFDefault$results
+```
+
+
+
+```{r}
+start.time <- Sys.time()
+paraOn()
 
 fitControl <- trainControl(method = "repeatedcv",
                            number = 10,
@@ -102,38 +121,11 @@ fitRF <- train(x, y, data=training1,
                trControl = fitControl,
                tuneGrid = expand.grid(mtry=round(sqrt(ncol(x)))))
 
-stopCluster(cluster)
-registerDoSEQ()
+paraOff()
 end.time <- Sys.time()
 time.takenRF <- end.time - start.time
 fitRF$results
 ```
-
-```{r}
-start.time <- Sys.time()
-cluster <- makeCluster(detectCores()-1)
-registerDoParallel(cluster)
-
-fitControl <- trainControl(method = "none",
-                           classProbs = TRUE,
-                           allowParallel = TRUE)
-
-set.seed(seed)
-fitgbm <- train(classe ~., data = training1,
-                  method = "gbm", trControl = fitControl,
-                  tuneGrid = data.frame(interaction.depth = 4,
-                                        n.trees = 500,
-                                        shrinkage = .1, 
-                                        n.minobsinnode = 20),
-                  metric = "ROC", verbose = FALSE)
-
-stopCluster(cluster)
-registerDoSEQ()
-end.time <- Sys.time()
-time.takenAdaM1 <- end.time - start.time
-fitgbm$results
-```
-
 
 *Improve Results*
 To improve the accuracy of the randomForest, I'll use the tuneRF function to optimize the mtry value.
@@ -141,16 +133,15 @@ To improve the accuracy of the randomForest, I'll use the tuneRF function to opt
 
 ```{r}
 start.time <- Sys.time()
-cluster <- makeCluster(detectCores()-1)
-registerDoParallel(cluster)
+paraOn()
 
 set.seed(seed)
 optmtryRF2 <- tuneRF(x, y, 
                   stepFactor = 1.5, 
-                  improve = 1e-4, ntreeTry = 500)
+                  improve = 1e-4, ntreeTry = 500,
+                  plot = TRUE)
 
-stopCluster(cluster)
-registerDoSEQ()
+paraOff()
 end.time <- Sys.time()
 time.takenRF2 <- end.time - start.time
 optmtryRF2
@@ -163,8 +154,7 @@ Holding mtry constant, I will create a set of models with different ntree values
 
 ```{r}
 start.time <- Sys.time()
-cluster <- makeCluster(detectCores()-1)
-registerDoParallel(cluster)
+paraOn()
 
 fitControl <- trainControl(method = "repeatedcv",
                            number = 10,
@@ -185,8 +175,7 @@ for(ntree in c(300, 400, 500, 600, 700)){
         fitList[[key]] <- fitRF
 }
 
-stopCluster(cluster)
-registerDoSEQ()
+paraOff()
 end.time <- Sys.time()
 time.takenRFtune <- end.time - start.time
 results <- resamples(fitList)
@@ -196,8 +185,7 @@ summary(results)
 
 ```{r}
 start.time <- Sys.time()
-cluster <- makeCluster(detectCores()-1)
-registerDoParallel(cluster)
+paraOn()
 
 fitControl <- trainControl(method = "repeatedcv",
                            number = 10,
@@ -218,10 +206,10 @@ for(ntree in c(1000, 1500, 2000)){
         fitList[[key]] <- fitRF
 }
 
-stopCluster(cluster)
-registerDoSEQ()
+paraOff()
 end.time <- Sys.time()
 time.takenRFtune <- end.time - start.time
+
 results2 <- resamples(fitList)
 summary(results2)
 ```
@@ -230,8 +218,7 @@ summary(results2)
 
 ```{r}
 start.time <- Sys.time()
-cluster <- makeCluster(detectCores()-1)
-registerDoParallel(cluster)
+paraOn()
 
 fitControl <- trainControl(method = "repeatedcv",
                            number = 10,
@@ -252,11 +239,11 @@ for(ntree in c(700, 2000)){
         fitList3[[key]] <- fitRF3
 }
 
-stopCluster(cluster)
-registerDoSEQ()
+paraOff()
 end.time <- Sys.time()
 time.takenRFtune <- end.time - start.time
+
 results3 <- resamples(fitList3)
-summary(results3)
+fitList3
 ```
 
