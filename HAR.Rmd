@@ -22,11 +22,13 @@ dim(testing)
 
 ### Data Constraints
 The 19,622 observations of 160 variables contains many variables unnecessary in model building, namely: 
-- the first 7 columns pertaining to observation number
+- first 7 columns pertaining to observation number
 - subject name
 - timestamps 
 - window variable  
-Additionally, derived column variables containing missing data or NA values will be removed:
+  
+Additionally, derived column variables containing missing data or NA values will be removed:  
+
 - kurtosis
 - skewness
 - max
@@ -37,8 +39,6 @@ Additionally, derived column variables containing missing data or NA values will
 - average of sensors  
 
 Only measurements from the belt, arm, formarm, and dumbbell varables will be preserved and will be converted from character classes to numeric for modeling purposes.  
-
-As the testing dataset only contains 20 instances of activity, the expectation of the prediciton model will be to correctly classify each instance in the correct class. 
 
 ```{r, cache=TRUE}
 #remove NA columns; max, min, variance, sd, amplitude, average
@@ -60,11 +60,11 @@ trainingPrime$classe <- as.factor(trainingPrime$classe)
 dim(trainingPrime)
 ```
 
-The training dataset now conatains 48 numeric predictors and 1 factor outcome. 
+The training dataset now conatains 48 numeric predictors and 1 factor outcome. The data preparation techniques to reduce the training set will be applied to the testing set before final model evaluation. As the testing dataset only contains 20 instances of activity, the expectation of the prediciton model will be to correctly classify each instance in the correct class. 
 
 ## Analyze Data
 
-```{r, warning=FALSE, cache = TRUE}
+```{r, warning=FALSE, cache = TRUE, results=asis}
 library(ggplot2)
 ggplot(trainingPrime, aes(classe)) + geom_histogram(stat="count")
 ```
@@ -78,7 +78,7 @@ The outcome classes are imbalanced and may need to balanced to improve predictio
         
 ## Evaluating RandomForest
 
-To predict HAR, the caret and randomForest packages will be employed. The trainingPrime dataset will be partitioned to create training and validation sets 
+To predict HAR, the caret and randomForest (RF) packages will be employed. The trainingPrime dataset will be partitioned to create training and validation sets to create the RF model and validate it before being applied to the test set.
 ```{r}
 inTrain <- createDataPartition(y=trainingPrime$classe,
                                p=.70, list=FALSE)
@@ -87,16 +87,14 @@ validation <- trainingPrime[-inTrain,]
 ```
 
 ```{r}
-# Set predictors
+# Set predictors and outcome to x and y respectively for brevity in coding
 x <- training1[,1:48]
 y <- training1$classe
 seed <- 170418
 ```
 
-
-
 ```{r}
-#Configures parallel processing
+#Configures parallel processing to decreased computation time
 library(parallel)
 library(doParallel)
 
@@ -109,8 +107,7 @@ paraOff <- function(){
         registerDoSEQ()}
 ```
 
-~Random Forest
-
+### Establishing baseline RF model
 ```{r}
 start.time <- Sys.time()
 paraOn()
@@ -129,7 +126,7 @@ fitRFDefault$results
 
 
 
-```{r}
+```{r, cache = TRUE}
 start.time <- Sys.time()
 paraOn()
 
