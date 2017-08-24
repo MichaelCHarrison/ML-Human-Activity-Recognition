@@ -3,14 +3,12 @@ title: "Human Activity Recognition Predictive Analysis"
 output: html_notebook
 ---
 
-*Problem Description*
+# Problem Description
 
-Wearable technologies (such as Fitbit, Nike FuelBand and Garvmin Vivosmart products) have allowed for the widespread collection of data relating to physical activity. While the focus of these devices is largely on quantifying and tracking the amount of activity, the data collected carries the potential to assess not only quantifiable measures but qualitative as well. Human Activity Recognition (HAR) has hained increasing attention in the research community for the development of potential applications in context-aware systems. 
+This study will use the data from Ugulino et al.'s "Wearable Computing: Accelerometers' Data Classification of Body Postures and Movements", in which subjects performed barbell lifts correctly and incorrectly to establish 5 different classes of activity. RandomForest will be the machine learning classifier used to predict the class of activity for the data set.
 
-Using the dataset from Ugulino et al.'s "Wearable Computing: Accelerometers' Data Classification of Body Postures and Movements", in which subjects performed barbell lifts correctly and incorrectly to establish 5 different classes of activity, I will use machine learning based classifer to predict the class of acitivy for the data set.
-
-*Provided Data*
-```{r, warning=FALSE, message=FALSE}
+## Data
+```{r, cache = TRUE, warning=FALSE, message=FALSE}
 library(caret)
 library(data.table)
 
@@ -18,58 +16,84 @@ training <- fread("pml-training.csv")
 testing <- fread("pml-testing.csv")
 dim(training)
 ```
+```{r}
+dim(testing)
+```
 
+### Data Constraints
+The 19,622 observations of 160 variables contains many variables unnecessary in model building, namely: 
+- the first 7 columns pertaining to observation number
+- subject name
+- timestamps 
+- window variable  
+Additionally, derived column variables containing missing data or NA values will be removed:
+- kurtosis
+- skewness
+- max
+- min
+- variance
+- standard deviation
+- amplitude
+- average of sensors  
 
+Only measurements from the belt, arm, formarm, and dumbbell varables will be preserved and will be converted from character classes to numeric for modeling purposes.  
 
-- Data Constraints
-The 19,622 observations of 160 variables contains many variables unnecessary in model building, namely the first 7 columns pertaining to observation number, subject name, timestamps, and window variable. Additionally, derived column variables containing missing data or NA values (kurtosis, skewness, max, min, variance, standard deviation, amplitude, and average of sensors) will be removed, preserving only measurements from belt, arm, formarm, and dumbbell. Finally, column types need to be converted from character class to numeric for modeling purposes.
+As the testing dataset only contains 20 instances of activity, the expectation of the prediciton model will be to correctly classify each instance in the correct class. 
 
 ```{r, cache=TRUE}
 #remove NA columns; max, min, variance, sd, amplitude, average
 trainingPrime <- t(na.omit(t(training)))
+
 #remove observation number, subject name, timestamps
 trainingPrime <- trainingPrime[, -c(1:7)]
+
 #remove kurtosis, skewness, yaw column variables
 toDrop <- c("^kurtosis*","^skewness*","yaw")
 trainingPrime <- trainingPrime[, -grep(paste(toDrop, collapse = "|"),
                                        colnames(trainingPrime))]
+
 #transform matrix to data.table
 trainingPrime <- as.data.table(trainingPrime)
-#Convert character class values to numeric
+#Convert character class values to numeric; 49th variable (classe) set to factor
 trainingPrime[,1:48] <- trainingPrime[, lapply(trainingPrime[,1:48], as.numeric)]
 trainingPrime$classe <- as.factor(trainingPrime$classe)
 dim(trainingPrime)
 ```
 
-*Analyze Data*
+The training dataset now conatains 48 numeric predictors and 1 factor outcome. 
 
-Dataset now contains 48 predictors (numeric variables), 1 outcome (factor variable). 
-```{r, warning=FALSE}
+## Analyze Data
+
+```{r, warning=FALSE, cache = TRUE}
+library(ggplot2)
 ggplot(trainingPrime, aes(classe)) + geom_histogram(stat="count")
 ```
 
-```{r}
-summary(trainingPrime$classe)
+```{r, cache = TRUE}
+summary <- summary(trainingPrime$classe)
+summary
 ```
 
+The outcome classes are imbalanced and may need to balanced to improve prediction. The issue of outcome class imbalance will be revisited if the accuracy of the model does not meet the goal of 100% correct classification in the 20 instance testing dataset. Should the imbalance need to be corrected, the A classifer will be reduced to the mean of classes B through E.
         
-~Sampling
+## Evaluating RandomForest
+
+To predict HAR, the caret and randomForest packages will be employed. The trainingPrime dataset will be partitioned to create training and validation sets 
 ```{r}
 inTrain <- createDataPartition(y=trainingPrime$classe,
-                               p=.75, list=FALSE)
-training1 <- trainingPrime[inTrain,]
-testing1 <- trainingPrime[-inTrain,]
+                               p=.70, list=FALSE)
+training <- trainingPrime[inTrain,]
+validation <- trainingPrime[-inTrain,]
 ```
 
-*Evaluate Algorithm*
-
-For the purposes of this classification analysis, I will use randomForest. The baseline will be established with an mtry value of the rounded square root of the number of predictors.
-
 ```{r}
+# Set predictors
 x <- training1[,1:48]
 y <- training1$classe
 seed <- 170418
 ```
+
+
 
 ```{r}
 #Configures parallel processing
@@ -95,8 +119,8 @@ fitControl <- trainControl(allowParallel = TRUE)
 
 set.seed(seed)
 fitRFDefault <- train(x, y, data = training1,
-               method = "rf", metric = "Accuracy",
-               trControl = fitControl)
+                      method = "rf", metric = "Accuracy",
+                      trControl = fitControl)
 paraOff()
 end.time <- Sys.time()
 time.takenRFDefault <- end.time - start.time #36.80987 minutes
@@ -152,7 +176,7 @@ The Out of Bag error as dependent on mtry seems to hold relatively constant betw
 
 Holding mtry constant, I will create a set of models with different ntree values to ascertain its ideal value.
 
-```{r}
+```{r, cache = TRUE}
 start.time <- Sys.time()
 paraOn()
 
