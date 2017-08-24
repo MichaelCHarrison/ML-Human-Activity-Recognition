@@ -64,7 +64,7 @@ The training dataset now conatains 48 numeric predictors and 1 factor outcome. T
 
 ## Analyze Data
 
-```{r, warning=FALSE, cache = TRUE, results=asis}
+```{r, warning=FALSE, cache = TRUE, results= 'asis'}
 library(ggplot2)
 ggplot(trainingPrime, aes(classe)) + geom_histogram(stat="count")
 ```
