@@ -1,26 +1,25 @@
 ---
 title: "Human Activity Recognition Predictive Analysis"
-output: html_notebook
+author: Michael Harrison
+output: 
+        md_document: 
+                variant: markdown_github
 ---
 
-# Problem Description
+## Problem Description
 
 This study will use the data from Ugulino et al.'s "Wearable Computing: Accelerometers' Data Classification of Body Postures and Movements", in which subjects performed barbell lifts correctly and incorrectly to establish 5 different classes of activity. RandomForest will be the machine learning classifier used to predict the class of activity for the data set.
 
-## Data
+### Data
 ```{r, cache = TRUE, warning=FALSE, message=FALSE}
 library(caret)
 library(data.table)
 
-training <- fread("pml-training.csv")
-testing <- fread("pml-testing.csv")
-dim(training)
-```
-```{r}
-dim(testing)
+trainingPrime <- fread("pml-training.csv")
+dim(trainingPrime)
 ```
 
-### Data Constraints
+#### Data Constraints
 The 19,622 observations of 160 variables contains many variables unnecessary in model building, namely: 
 - first 7 columns pertaining to observation number
 - subject name
@@ -40,56 +39,83 @@ Additionally, derived column variables containing missing data or NA values will
 
 Only measurements from the belt, arm, formarm, and dumbbell varables will be preserved and will be converted from character classes to numeric for modeling purposes.  
 
+
+# Set this as a function to clean the test function
 ```{r, cache=TRUE}
-#remove NA columns; max, min, variance, sd, amplitude, average
-trainingPrime <- t(na.omit(t(training)))
 
-#remove observation number, subject name, timestamps
-trainingPrime <- trainingPrime[, -c(1:7)]
+dataPrep <- function(data){
+        #remove NA columns; max, min, variance, sd, amplitude, average
+        prep <- t(na.omit(t(data)))
 
-#remove kurtosis, skewness, yaw column variables
-toDrop <- c("^kurtosis*","^skewness*","yaw")
-trainingPrime <- trainingPrime[, -grep(paste(toDrop, collapse = "|"),
-                                       colnames(trainingPrime))]
+        #remove observation number, subject name, timestamps
+        prep <- prep[, -c(1:7)]
+        
+        #remove kurtosis, skewness, yaw column variables
+        toDrop <- c("^kurtosis*","^skewness*","yaw")
+        prep <- prep[, -grep(paste(toDrop, collapse = "|"), colnames(prep))]
+        
+        #transform matrix to data.table
+        prep <- as.data.table(prep)
+        #Convert character class values to numeric; 49th variable (classe) set to factor
+        prep[,1:48] <- prep[, lapply(prep[,1:48], as.numeric)]
+        prep$classe <- as.factor(prep$classe)
+        prep
+}
 
-#transform matrix to data.table
-trainingPrime <- as.data.table(trainingPrime)
-#Convert character class values to numeric; 49th variable (classe) set to factor
-trainingPrime[,1:48] <- trainingPrime[, lapply(trainingPrime[,1:48], as.numeric)]
-trainingPrime$classe <- as.factor(trainingPrime$classe)
-dim(trainingPrime)
+preppedData <- dataPrep(trainingPrime)
+dim(preppedData)
 ```
 
-The training dataset now conatains 48 numeric predictors and 1 factor outcome. The data preparation techniques to reduce the training set will be applied to the testing set before final model evaluation. As the testing dataset only contains 20 instances of activity, the expectation of the prediciton model will be to correctly classify each instance in the correct class. 
+The training dataset now conatains 48 numeric predictors and 1 factor outcome. 
+
+```{r}
+library(caret)
+
+inTrain <- createDataPartition(y=preppedData$classe,
+                               p=.5, list=FALSE)
+training <- preppedData[inTrain,]
+validation_test <- preppedData[-inTrain,]
+
+inVal <- createDataPartition(y=validation_test$classe,
+                             p = .5, list=FALSE)
+validation <- validation_test[inVal]
+testing <- validation_test[-inVal]
+```
+```{r}
+dim(training)
+```
+```{r}
+dim(validation)
+```
+```{r}
+dim(testing)
+```
+
 
 ## Analyze Data
 
-```{r, warning=FALSE, cache = TRUE, results= 'asis'}
+```{r, warning=FALSE, cache = TRUE, results= 'hold'}
 library(ggplot2)
-ggplot(trainingPrime, aes(classe)) + geom_histogram(stat="count")
+ggplot(preppedData, aes(classe)) + geom_histogram(stat="count")
 ```
 
 ```{r, cache = TRUE}
-summary <- summary(trainingPrime$classe)
+summary <- summary(training$classe)
 summary
 ```
 
-The outcome classes are imbalanced and may need to balanced to improve prediction. The issue of outcome class imbalance will be revisited if the accuracy of the model does not meet the goal of 100% correct classification in the 20 instance testing dataset. Should the imbalance need to be corrected, the A classifer will be reduced to the mean of classes B through E.
+The outcome classes are imbalanced and may need to balanced to improve prediction. The issue of outcome class imbalance will be revisited if the accuracy of the model does not meet the goal. Should the imbalance need to be corrected, the A classifer will be reduced to the mean of classes B through E.  
+        
         
 ## Evaluating RandomForest
 
 To predict HAR, the caret and randomForest (RF) packages will be employed. The trainingPrime dataset will be partitioned to create training and validation sets to create the RF model and validate it before being applied to the test set.
-```{r}
-inTrain <- createDataPartition(y=trainingPrime$classe,
-                               p=.70, list=FALSE)
-training <- trainingPrime[inTrain,]
-validation <- trainingPrime[-inTrain,]
-```
+
 
 ```{r}
 # Set predictors and outcome to x and y respectively for brevity in coding
-x <- training1[,1:48]
-y <- training1$classe
+x <- training[,1:48]
+y <- training$classe
 seed <- 170418
 ```
 
@@ -108,33 +134,30 @@ paraOff <- function(){
 ```
 
 ### Establishing baseline RF model
-```{r}
-start.time <- Sys.time()
-paraOn()
-
+```{r, cache=TRUE, results='hold'}
 fitControl <- trainControl(allowParallel = TRUE)
 
+paraOn()
+start.time <- Sys.time()
 set.seed(seed)
-fitRFDefault <- train(x, y, data = training1,
+fitRF.base <- train(x, y, data = training,
                       method = "rf", metric = "Accuracy",
                       trControl = fitControl)
 paraOff()
-end.time <- Sys.time()
-time.takenRFDefault <- end.time - start.time #36.80987 minutes
-fitRFDefault$results
+elapsedRF.base <- end.time - Sys.time() 
+fitRF.base
 ```
 
 
 
 ```{r, cache = TRUE}
-start.time <- Sys.time()
-paraOn()
-
 fitControl <- trainControl(method = "repeatedcv",
                            number = 10,
                            repeats = 3,
                            allowParallel = TRUE)
 
+start.time <- Sys.time()
+paraOn()
 set.seed(seed)
 fitRF <- train(x, y, data=training1, 
                method="rf", 
