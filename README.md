@@ -5,7 +5,6 @@ Wearable technologies (such as Fitbit, Nike FuelBand, Garvmin Vivosmart products
 
 For the companies collecting users' data through wearable technologies, this provides a particular wealth of information for making business decisions. Understanding how to qualitiatively assess the user communities' tendencies can lend itself to developing additional functionality to mobile appliations or market targeting strategies. By classifying data and recognizing patterns in user activity, mobile applications could 
 
-
 By recognizing patterns in user activity, recommend locations to exercise if away on vacay or something
 
 Ad targeting
