@@ -133,7 +133,7 @@ paraOff <- function(){
         registerDoSEQ()}
 ```
 
-### Establishing baseline RF model
+### Establish baseline RF model; Metric = Accuracy
 ```{r, cache=TRUE, results='hold'}
 fitControl <- trainControl(allowParallel = TRUE)
 
@@ -148,6 +148,32 @@ elapsedRF.base <- end.time - Sys.time()
 fitRF.base
 ```
 
+### Establisgh Baseline RF model; Metric = LogLoss
+```{r}
+trainControl <- trainControl(classProbs = TURE,
+                           summaryFunction = mnLogLoss,
+                           allowParallel = TRUE)
+
+paraOn()
+start.time <- Sys.time()
+set.seed(seed)
+fitRF.base.logloss <- train(x, y, data = training,
+                      method = "rf", metric = "logLoss",
+                      trControl = trainControl)
+paraOff()
+elapsedRF.base.logloss <- end.time - Sys.time() 
+fitRF.base.logloss
+```
+
+
+# Baseline RandomForest Model Validaiton
+
+```{r}
+val.predictions <- predict(fitRF.base, validation)
+confusionMatrix(val.predictions, validation$classe)
+```
+
+The baseline randomforest model predicts HAR with an accuracy of 98.92 percent on the validation set.
 
 
 ```{r, cache = TRUE}
@@ -159,20 +185,17 @@ fitControl <- trainControl(method = "repeatedcv",
 start.time <- Sys.time()
 paraOn()
 set.seed(seed)
-fitRF <- train(x, y, data=training1, 
+fitRF.cv <- train(x, y, data=training, 
                method="rf", 
-               metric = "Accuracy",   
-               trControl = fitControl,
-               tuneGrid = expand.grid(mtry=round(sqrt(ncol(x)))))
+               metric = c("Accuracy"),
+               trControl = fitControl)
 
 paraOff()
-end.time <- Sys.time()
-time.takenRF <- end.time - start.time
-fitRF$results
+elapsedRF.cv <- Sys.time() - start.time
+fitRFcv
 ```
 
-*Improve Results*
-To improve the accuracy of the randomForest, I'll use the tuneRF function to optimize the mtry value.
+
 
 
 ```{r}
